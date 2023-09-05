@@ -84,6 +84,7 @@ class PerceptualVGG(nn.Module):
         features = {}
 
         for i, l in enumerate(self.features):
+            
             x = l(x)
             if i in self.layers:
                 features[self.layers[i]] = x.clone()

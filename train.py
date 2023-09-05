@@ -88,7 +88,7 @@ class Trainer:
         self.model = UNet(in_channels=3, out_channels=3).to(self.device)
                                     
         #optimizer
-        self.optimizer = Adam(self.model.parameters(), self.opt.learning_rate)
+        self.optimizer = Adam(self.model.parameters(), self.opt.lr)
         self.scheduler = lr_scheduler.MultiStepLR(optimizer=self.optimizer, milestones=[25, 35], gamma=0.5)
         torch.optim.lr_scheduler.MultiStepLR
         
@@ -97,21 +97,20 @@ class Trainer:
     def set_train(self):
         """Convert all models to training mode
         """
-        for m in self.models.values():
-            m.train()
+        self.model.train()
             
     def set_eval(self):
         """Convert all models to testing/evaluation mode
         """
-        for m in self.models.values():
-            m.eval()
+        self.model.eval()
             
     def train(self):
         """Run the entire training pipeline
         """
+        
         self.epoch = 0
         self.step = 0
-        self.start_time = time.time()
+        self.start_time = time()
         for self.epoch in range(self.opt.num_epoch):
             self.run_epoch()
             if (self.epoch + 1) % self.opt.save_frequency == 0:
@@ -124,7 +123,7 @@ class Trainer:
         """Run a single epoch of training and validation
         """
         
-        self.model_lr_scheduler.step()
+        self.scheduler.step()
 
 
         print("Training")
@@ -132,9 +131,13 @@ class Trainer:
         
         for batch_idx, inputs in enumerate(self.train_dataloader):
             
-            before_op_time = time.time()
-            inputs = inputs.to(self.device)
+            before_op_time = time()
             scene_img, flare_img, merge_img, gamma = inputs
+            
+            scene_img = scene_img.to(self.device).float()
+            flare_img = flare_img.to(self.device).float()
+            merge_img = merge_img.to(self.device).float()
+            gamma = gamma.to(self.device).float()
             
             pred_scene = self.model(merge_img).clamp(0.0, 1.0)
             pred_flare = synthesis.remove_flare(merge_img, pred_scene, gamma)
@@ -177,7 +180,7 @@ class Trainer:
             for k, v in loss.items():
                 self.running_scalars[k] = self.running_scalars[k] + v.detach().mean().item()
                 
-            global_step = (self.epoch - 1) * len(self.train_flare_image_loader)
+            global_step = (self.epoch - 1) * len(self.train_flare_image_dataset)
             
             if global_step % 100 == 0:
                 self.tb_writer.add_scalar(

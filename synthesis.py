@@ -24,7 +24,7 @@ def remove_flare(combined, flare, gamma=2.2):
     # gamma < 1.
     combined = combined.clamp(_EPS, 1.0)
     flare = flare.clamp(_EPS, 1.0)
-
+    gamma = gamma.unsqueeze(1).unsqueeze(2).unsqueeze(3)
     combined_linear = torch.pow(combined, gamma)
     flare_linear = torch.pow(flare, gamma)
 

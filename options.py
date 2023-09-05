@@ -57,7 +57,7 @@ class DeflareOptions:
         self.parser.add_argument("--batch_size",
                                  type=int,
                                  help="batch size",
-                                 default=32)
+                                 default=8)
         self.parser.add_argument("--lr",
                                  default=1e-4,
                                  type=float,
