@@ -14,6 +14,10 @@ class DeflareOptions:
                             type=str,
                             help="path to save the output data",
                             default="./output")
+        self.parser.add_argument("--val", 
+                            type=str,
+                            help="path to save the output data",
+                            default="./data/val")
         self.parser.add_argument("--base_img", 
                             type=str,
                             help="path to the training data with background",

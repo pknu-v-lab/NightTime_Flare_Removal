@@ -12,7 +12,8 @@ from networks import UNet
 import synthesis
 import torchvision
 import torchvision.transforms as transforms
-from data_loader import Flare_Image_Loader
+from torch.utils.data import DataLoader
+from data_loader import Flare_Image_Dataset, Blend_Image_Dataset
 from torch.utils.tensorboard import SummaryWriter
 from options import DeflareOptions
 import os
@@ -64,11 +65,22 @@ class Trainer:
 							  transforms.RandomHorizontalFlip(),
 							  transforms.RandomVerticalFlip()
                               ])
-        self.train_flare_image_loader = Flare_Image_Loader(self.opt.base_img, self.transform_base, self.transform_flare, mode='train')
-        self.train_flare_image_loader.load_scattering_flare(self.opt.flare_img, os.path.join(self.opt.flare_img, 'Flare'))
+        self.train_flare_image_dataset = Flare_Image_Dataset(self.opt.base_img, self.transform_base, self.transform_flare, mode='train')
+        self.train_flare_image_dataset.load_scattering_flare(self.opt.flare_img, os.path.join(self.opt.flare_img, 'Flare'))
         
-        self.val_flare_image_loader = Flare_Image_Loader(self.opt.base_img, self.transform_base, self.transform_flare, mode='valid')
-        self.val_flare_image_loader.load_scattering_flare(self.opt.flare_img, os.path.join(self.opt.flare_img, 'Flare'))
+        
+        self.train_dataloader = DataLoader(dataset=self.train_flare_image_dataset,
+                              batch_size=self.opt.batch_size,
+                              shuffle=True,
+                              pin_memory=True,
+                              num_workers=0)
+        
+        self.val_flare_image_dataset = Blend_Image_Dataset(self.opt, self.opt.val, transform_base=self.transform_base, mode='valid')
+        self.val_dataloader = DataLoader(dataset=self.val_flare_image_dataset,
+                                         batch_size=1,
+                                         shuffle=False)
+        
+        
         
         
         
@@ -118,7 +130,7 @@ class Trainer:
         print("Training")
         self.set_train()
         
-        for batch_idx, inputs in enumerate(self.train_flare_image_loader):
+        for batch_idx, inputs in enumerate(self.train_dataloader):
             
             before_op_time = time.time()
             inputs = inputs.to(self.device)
