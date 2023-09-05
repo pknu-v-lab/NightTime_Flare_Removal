@@ -1,17 +1,23 @@
 from __future__ import absolute_import, division, print_function
 
 from time import time
-import logging
 import numpy as np
 import random
 import torch
+from collections import defaultdict
+from utils import get_logger, build_criterion,grid_transpose
 from torch.optim import Adam, lr_scheduler
 import torch.backends.cudnn as cudnn
 from networks import UNet
+import synthesis
+import torchvision
 import torchvision.transforms as transforms
 from data_loader import Flare_Image_Loader
+from torch.utils.tensorboard import SummaryWriter
 from options import DeflareOptions
 import os
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
+
 
 
 options = DeflareOptions()
@@ -28,10 +34,13 @@ torch.cuda.manual_seed_all(opts.seed)
 class Trainer:
     def __init__(self, options):
         self.opt = options
-        self.log_path = os.path.join(self.opt.log_dir, self.opt.model_name)
+        self.log_path = os.path.join(self.opt.log_dir, "UNet")
         
-        
-        self.parameters_to_train = []
+        self.running_scalars = defaultdict(float)
+        self.logger = get_logger(self)
+        self.writers = {}
+
+        self.tb_writers = SummaryWriter(self.log_path,"UNet")
         
         self.device = torch.device("cpu" if self.opt.no_cuda else "cuda")
         if self.device == 'cuda':
@@ -42,8 +51,8 @@ class Trainer:
                 cudnn.benchmark = True
                 
         self.output_dir = self.opt.output_dir
-        if not self.output_dir.exists():
-            self.output_dir.mkdir(parents=True)
+        if not os.path.exists(self.output_dir):
+            os.mkdir(self.output_dir)
             
         self.transform_base=transforms.Compose([transforms.RandomCrop((512,512),pad_if_needed=True,padding_mode='reflect'),
 							  transforms.RandomHorizontalFlip(),
@@ -57,6 +66,12 @@ class Trainer:
                               ])
         self.train_flare_image_loader = Flare_Image_Loader(self.opt.base_img, self.transform_base, self.transform_flare, mode='train')
         self.train_flare_image_loader.load_scattering_flare(self.opt.flare_img, os.path.join(self.opt.flare_img, 'Flare'))
+        
+        self.val_flare_image_loader = Flare_Image_Loader(self.opt.base_img, self.transform_base, self.transform_flare, mode='valid')
+        self.val_flare_image_loader.load_scattering_flare(self.opt.flare_img, os.path.join(self.opt.flare_img, 'Flare'))
+        
+        
+        
                                                             
         self.model = UNet(in_channels=3, out_channels=3).to(self.device)
                                     
@@ -65,70 +80,137 @@ class Trainer:
         self.scheduler = lr_scheduler.MultiStepLR(optimizer=self.optimizer, milestones=[25, 35], gamma=0.5)
         torch.optim.lr_scheduler.MultiStepLR
         
-        self.criterion = build
+        self.criterion = build_criterion(self)
+        
+    def set_train(self):
+        """Convert all models to training mode
+        """
+        for m in self.models.values():
+            m.train()
+            
+    def set_eval(self):
+        """Convert all models to testing/evaluation mode
+        """
+        for m in self.models.values():
+            m.eval()
+            
+    def train(self):
+        """Run the entire training pipeline
+        """
+        self.epoch = 0
+        self.step = 0
+        self.start_time = time.time()
+        for self.epoch in range(self.opt.num_epoch):
+            self.run_epoch()
+            if (self.epoch + 1) % self.opt.save_frequency == 0:
+                self.save_model()
+
         
     
-    def get_logger(self):
-        if not os.path.exists('./log'):
-            os.makedirs('./log')
+    
+    def run_epoch(self):
+        """Run a single epoch of training and validation
+        """
+        
+        self.model_lr_scheduler.step()
 
-        if not os.path.exists(self.log_dir):
-            os.makedirs(self.log_dir)
 
-        # log 출력 형식
-        logger = logging.getLogger()
-        logger.setLevel(logging.INFO)
-        formatter = logging.Formatter('%(asctime)s - %(message)s')
+        print("Training")
+        self.set_train()
+        
+        for batch_idx, inputs in enumerate(self.train_flare_image_loader):
+            
+            before_op_time = time.time()
+            inputs = inputs.to(self.device)
+            scene_img, flare_img, merge_img, gamma = inputs
+            
+            pred_scene = self.model(merge_img).clamp(0.0, 1.0)
+            pred_flare = synthesis.remove_flare(merge_img, pred_scene, gamma)
+            
+            flare_mask = synthesis.get_highlight_mask(flare_img)
+            
+            # Fill the saturation region with the ground truth, so that no L1/L2
+            # loss and better for perceptual loss since
+            # it matches the surrounding scenes.
+            masked_scene = pred_scene * (1 - flare_mask) + scene_img * flare_mask
+            masked_flare = pred_flare * (1 - flare_mask) + flare_img * flare_mask
+            
+            loss = dict()
+            loss_weights = { 'flare': {'l1': 1, 'perceptual': 1}, 'scene': {'l1': 1,'perceptual': 1}}
+            
+            for t, pred, gt in[
+                ("scene", masked_scene, scene_img),
+                ("flare", masked_flare, flare_img)
+            ]:
+                l = dict(
+                    l1 = self.criterion["l1"](pred, gt),
+                    ffl = self.criterion["ffl"](pred, gt),
+                    lpips = self.criterion["lpips"](pred, gt, value_range=(0, 1)),
+                    perceptual = self.criterion["perceptual"](pred, gt, value_range=(0, 1)),
+                )
+                for k in l:
+                    if loss_weights[t].get(k, 0.0) > 0:
+                        loss[f"{t}_{k}"] = loss_weights[t].get(k, 0.0) * l[k]
+            
+            self.optimizer.zero_grad()
+            total_loss = sum(loss.values())
+            total_loss.backward()
+            self.optimizer.step()
+            
+            ########################
+      
+            
+            
 
-        # log 출력
-        stream_handler = logging.StreamHandler()
-        stream_handler.setFormatter(formatter)
-        logger.addHandler(stream_handler)
+            for k, v in loss.items():
+                self.running_scalars[k] = self.running_scalars[k] + v.detach().mean().item()
+                
+            global_step = (self.epoch - 1) * len(self.train_flare_image_loader)
+            
+            if global_step % 100 == 0:
+                self.tb_writer.add_scalar(
+                    "metric/total_loss", total_loss.detach().cpu().item(), global_step
+                )
+                for k in self.running_scalars:
+                    v = self.running_scalars[k] / 100
+                    self.running_scalars[k] = 0.0
+                    self.tb_writer.add_scalar(f"loss/{k}", v, global_step)
 
-        # log를 파일에 출력
-        log_filename = os.path.join(log_dir, 'training.log')
-        file_handler = logging.FileHandler(log_filename)
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
-
-        return logger
-
-    def build_criterion(self):
-        loss_weights = config.loss.weight
-
-        criterion = dict()
-
-        def _empty_l(*args, **kwargs):
-            return 0
-
-        def valid_l(name):
-            return (
-                loss_weights["flare"].get(name, 0.0) > 0
-                or loss_weights["scene"].get(name, 0.0) > 0
-            )
-
-        criterion["l1"] = torch.nn.L1Loss().to(device) if valid_l("l1") else _empty_l
-        criterion["lpips"] = LPIPSLoss().to(device) if valid_l("lpips") else _empty_l
-        criterion["ffl"] = FocalFrequencyLoss().to(device) if valid_l("ffl") else _empty_l
-        criterion["perceptual"] = (
-            PerceptualLoss(**config.loss.perceptual).to(device)
-            if valid_l("perceptual")
-            else _empty_l
+            if global_step % 200 == 0:
+                images = grid_transpose(
+                    [merge_img, scene_img, pred_scene, flare_img, pred_flare]
+                )
+                images = torchvision.utils.make_grid(
+                    images, nrow=5, value_range=(0, 1), normalize=True
+                )
+                self.tb_writer.add_image(
+                    f"train/combined|real_scene|pred_scene|real_flare|pred_flare",
+                    images,
+                    global_step,
+                )
+        self.logger.info(
+            f"EPOCH[{self.epoch}/{self.opt.num_epoch}] END "
+            f"Taken {(time.time() - before_op_time) / 60.0:.4f} min"
         )
-
-    return criterion
+        
+        if self.epoch % 2 == 0:
+            to_save = dict(
+                g=self.model.state_dict(), g_optim=self.optimizer.state_dict(), epoch=self.epoch
+            )
+            torch.save(to_save, self.output_dir / f"epoch_{self.epoch:03d}.pt")
+            self.logger.info(f"save checkpoint at {self.output_dir / f'epoch_{self.epoch:03d}.pt'}")
+            
+        if self.epoch % 1 == 0:
+            self.model.eval()
+            # with torch.no_grad():
+                
+            
   
 
 
 
 
-
-
-data_list = train_flare_image_loader.data_list
-print(len(data_list))
-
-
-for i in range(len(data_list)):
-    base_img, flare_img, merge_img, flare_mask = train_flare_image_loader[i]
-    
+if __name__ == "__main__":
+    trainer = Trainer(opts)
+    trainer.train()
     

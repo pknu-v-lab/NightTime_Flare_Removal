@@ -75,9 +75,9 @@ class DeflareOptions:
         
         
         # Loading Options
-        self.parser.add_argument("load_weights_folder",
-                                 type=str,
-                                 help="name of model to load")
+        # self.parser.add_argument("load_weights_folder",
+        #                          type=str,
+        #                          help="name of model to load")
         
         
         
@@ -86,6 +86,13 @@ class DeflareOptions:
                                  type=int,
                                  help="number of batches between each tensorboard log",
                                  default=100)
+        
+        self.parser.add_argument("--save_frequency",
+                                 type=int,
+                                 help="number of epochs between each save",
+                                 default=1)
+        
+        
         
         
     def parse(self):

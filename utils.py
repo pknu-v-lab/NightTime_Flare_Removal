@@ -1,0 +1,98 @@
+import torch
+from typing import Iterable, Union, Optional, MutableMapping
+from losses.focal_frequency_loss import FocalFrequencyLoss
+from losses.lpips_loss import LPIPSLoss
+from losses.perceptual_loss import PerceptualLoss
+import logging
+import os
+
+def build_criterion(self):
+        loss_weights = { 'flare': {'l1': 1, 'perceptual': 1}, 'scene': {'l1': 1,'perceptual': 1}}
+
+        
+        loss_perceptual = {'layers': {'conv1_2': 0.384615,
+                                      'conv2_2': 0.208333,
+                                      'conv3_2': 0.270270,
+                                      'conv4_2': 0.178571,
+                                      'conv5_2': 6.666666},
+                           'criterion': 'L1'}
+                          
+        
+
+        criterion = dict()
+
+        def _empty_l(*args, **kwargs):
+            return 0
+
+        def valid_l(name):
+            return (
+                loss_weights["flare"].get(name, 0.0) > 0
+                or loss_weights["scene"].get(name, 0.0) > 0
+            )
+
+        criterion["l1"] = torch.nn.L1Loss().to(self.device) if valid_l("l1") else _empty_l
+        criterion["lpips"] = LPIPSLoss().to(self.device) if valid_l("lpips") else _empty_l
+        criterion["ffl"] = FocalFrequencyLoss().to(self.device) if valid_l("ffl") else _empty_l
+        criterion["perceptual"] = (
+            PerceptualLoss(**loss_perceptual).to(self.device)
+            if valid_l("perceptual")
+            else _empty_l
+        )
+
+        return criterion
+    
+def get_logger(self):
+        if not os.path.exists('./log'):
+            os.makedirs('./log')
+
+        if not os.path.exists(self.opt.log_dir):
+            os.makedirs(self.log_dir)
+
+        # log 출력 형식
+        logger = logging.getLogger()
+        logger.setLevel(logging.INFO)
+        formatter = logging.Formatter('%(asctime)s - %(message)s')
+
+        # log 출력
+        stream_handler = logging.StreamHandler()
+        stream_handler.setFormatter(formatter)
+        logger.addHandler(stream_handler)
+
+        # log를 파일에 출력
+        log_filename = os.path.join(self.opt.log_dir, 'training.log')
+        file_handler = logging.FileHandler(log_filename)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+
+        return logger
+    
+    
+def grid_transpose(
+    tensors: Union[torch.Tensor, Iterable], original_nrow: Optional[int] = None
+) -> torch.Tensor:
+    """
+    batch tensors transpose.
+    :param tensors: Tensor[(ROW*COL)*D1*...], or Iterable of same size tensors.
+    :param original_nrow: original ROW
+    :return: Tensor[(COL*ROW)*D1*...]
+    """
+    assert torch.is_tensor(tensors) or isinstance(tensors, Iterable)
+    if not torch.is_tensor(tensors) and isinstance(tensors, Iterable):
+        seen_size = None
+        grid = []
+        for tensor in tensors:
+            if seen_size is None:
+                seen_size = tensor.size()
+                original_nrow = original_nrow or len(tensor)
+            elif tensor.size() != seen_size:
+                raise ValueError("expect all tensor in images have the same size.")
+            grid.append(tensor)
+        tensors = torch.cat(grid)
+
+    assert original_nrow is not None
+
+    cell_size = tensors.size()[1:]
+
+    tensors = tensors.reshape(-1, original_nrow, *cell_size)
+    tensors = torch.transpose(tensors, 0, 1)
+    return torch.reshape(tensors, (-1, *cell_size))
