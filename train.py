@@ -4,13 +4,15 @@ from time import time
 import numpy as np
 import random
 import torch
+import kornia as K
 from collections import defaultdict
-from utils import get_logger, build_criterion,grid_transpose
+from utils import get_logger, build_criterion,grid_transpose, log_time
 from torch.optim import Adam, lr_scheduler
 import torch.backends.cudnn as cudnn
 from networks import UNet
 import synthesis
 import torchvision
+import torch.nn.functional as F
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 from data_loader import Flare_Image_Dataset, Blend_Image_Dataset
@@ -82,7 +84,8 @@ class Trainer:
         
         
         
-        
+        num_train_samples = len(self.train_dataloader)
+        self.num_total_steps = num_train_samples // self.opt.batch_size * self.opt.num_epoch
         
                                                             
         self.model = UNet(in_channels=3, out_channels=3).to(self.device)
@@ -115,10 +118,10 @@ class Trainer:
             self.run_epoch()
             if (self.epoch + 1) % self.opt.save_frequency == 0:
                 self.save_model()
-
         
-    
-    
+        self.logger.success(f"train over.")
+            
+     
     def run_epoch(self):
         """Run a single epoch of training and validation
         """
@@ -172,37 +175,76 @@ class Trainer:
             total_loss.backward()
             self.optimizer.step()
             
+            duration = time() - before_op_time
             ########################
-      
+            early_phase = batch_idx % self.opt.log_frequency == 0 
+            late_phase = self.step % 2000 == 0
             
             
+            
+            if early_phase or late_phase:
+                log_time(self, batch_idx, duration, total_loss.cpu())
+                
+                
+                
+                with torch.no_grad():
+                
+                    self.model.eval()
+
+                    metrics = defaultdict(float)
+                    for n, (inputs, labels) in enumerate(self.val_dataloader):
+                        gamma=np.random.uniform(1.8,2.2)
+                        inputs = inputs.to(self.device)
+                        
+
+                        results = synthesis.batch_remove_flare(self, inputs, self.model, resolution=512)
+                        metrics["PSNR"] += K.metrics.psnr(results["pred_blend"], labels, 1.0).item()
+                        metrics["SSIM"] += (
+                            K.metrics.ssim(results["pred_blend"], labels, 11).mean().item()
+                        )
+
+                    for k in metrics:
+                        metrics[k] = metrics[k] / len(self.val_dataloader)
+
+                    self.model.train()
+
+                    self.logger.info(
+                        f"EPOCH[{self.epoch}/{self.opt.num_epoch}] metrics "
+                        + "\t".join([f"{k}={v:.4f}" for k, v in metrics.items()]))
+
+                    for m, v in metrics.items():
+                        self.tb_writers.add_scalar(f"evaluate/{m}", v, self.epoch * len(self.train_dataloader))
+                
+                
 
             for k, v in loss.items():
                 self.running_scalars[k] = self.running_scalars[k] + v.detach().mean().item()
                 
-            global_step = (self.epoch - 1) * len(self.train_flare_image_dataset)
+            global_step = self.step
             
-            if global_step % 100 == 0:
-                self.tb_writer.add_scalar(
+            if global_step % 500 == 0:
+                self.tb_writers.add_scalar(
                     "metric/total_loss", total_loss.detach().cpu().item(), global_step
                 )
                 for k in self.running_scalars:
                     v = self.running_scalars[k] / 100
                     self.running_scalars[k] = 0.0
-                    self.tb_writer.add_scalar(f"loss/{k}", v, global_step)
+                    self.tb_writers.add_scalar(f"loss/{k}", v, global_step)
 
-            if global_step % 200 == 0:
+            if global_step % 500 == 0:
                 images = grid_transpose(
                     [merge_img, scene_img, pred_scene, flare_img, pred_flare]
                 )
                 images = torchvision.utils.make_grid(
                     images, nrow=5, value_range=(0, 1), normalize=True
                 )
-                self.tb_writer.add_image(
+                self.tb_writers.add_image(
                     f"train/combined|real_scene|pred_scene|real_flare|pred_flare",
                     images,
                     global_step,
                 )
+            self.step += 1
+            
         self.logger.info(
             f"EPOCH[{self.epoch}/{self.opt.num_epoch}] END "
             f"Taken {(time.time() - before_op_time) / 60.0:.4f} min"
@@ -215,9 +257,11 @@ class Trainer:
             torch.save(to_save, self.output_dir / f"epoch_{self.epoch:03d}.pt")
             self.logger.info(f"save checkpoint at {self.output_dir / f'epoch_{self.epoch:03d}.pt'}")
             
-        if self.epoch % 1 == 0:
-            self.model.eval()
-            # with torch.no_grad():
+     
+            
+       
+                
+                    
                 
             
   
