@@ -89,7 +89,7 @@ class DeflareOptions:
         self.parser.add_argument("--log_frequency",
                                  type=int,
                                  help="number of batches between each tensorboard log",
-                                 default=250)
+                                 default=200)
         
         self.parser.add_argument("--save_frequency",
                                  type=int,

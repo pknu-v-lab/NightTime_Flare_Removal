@@ -74,42 +74,10 @@ class Blend_Image_Dataset(data.Dataset):
         gt_img_path = self.gt_list[idx]
         gt_img = Image.open(gt_img_path)
         
-        
-        gamma = np.random.uniform(1.8,2.2)
-        to_tensor = transforms.ToTensor()
-        adjust_gamma = RandomGammaCorrection(gamma)
-        # adjust_gamma_reverse = RandomGammaCorrection(1/gamma)
-        # color_jitter=transforms.ColorJitter(brightness=(0.8,3),hue=0.0)
-        
-        if self.transform_base is not None:
-            blend_img = to_tensor(blend_img)
-            blend_img = adjust_gamma(blend_img)
-            blend_img = self.transform_base(blend_img)
-            
-            gt_img = to_tensor(gt_img)
-            gt_img = adjust_gamma(gt_img)
-            gt_img = self.transform_base(gt_img)
-            
-        else:
-            blend_img = to_tensor(blend_img)
-            blend_img = adjust_gamma(blend_img)
-            blend_img = blend_img.permute(2,0,1)
-            
-            gt_img = to_tensor(gt_img)
-            gt_img = adjust_gamma(gt_img)
-            gt_img = gt_img.permute(2, 0, 1)
-            
-        sigma_chi = 0.01*np.random.chisquare(df=1)
-        blend_img = Normal(blend_img,sigma_chi).sample()
-        gt_img = Normal(gt_img,sigma_chi).sample()
-        gain = np.random.uniform(0.5,1.2)
-        
-    
-        blend_img = gain * blend_img
-        blend_img=torch.clamp(blend_img,min=0,max=1)
-        gt_img = gain * gt_img
-        gt_img=torch.clamp(gt_img,min=0,max=1)
-        
+        to_tensor = transforms.ToTensor() 
+        blend_img = to_tensor(blend_img)    
+        gt_img = to_tensor(gt_img)
+     
         
         return blend_img, gt_img
         
