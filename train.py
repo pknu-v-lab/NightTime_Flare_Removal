@@ -223,38 +223,11 @@ class Trainer:
             if early_phase or late_phase:
                 log_time(self, batch_idx, duration, total_loss.cpu())
                 
+                self.val()
                 
                 
-                with torch.no_grad():
-                
-                    self.model.eval()
-
-                    metrics = defaultdict(float)
-                    for n, (inputs, labels) in enumerate(self.val_dataloader):
-                        gamma=np.random.uniform(1.8,2.2)
-                        inputs = inputs.to(self.device)
-                        
-
-                        results = synthesis.batch_remove_flare(self, inputs, self.model, resolution=512)
-                        metrics["PSNR"] += K.metrics.psnr(results["pred_blend"], labels, 1.0).item()
-                        metrics["SSIM"] += (
-                            K.metrics.ssim(results["pred_blend"], labels, 11).mean().item()
-                        )
-
-                    for k in metrics:
-                        metrics[k] = metrics[k] / len(self.val_dataloader)
-
-                    self.model.train()
-
-                    self.logger.info(
-                        f"EPOCH[{self.epoch}/{self.opt.num_epoch}] metrics "
-                        + "\t".join([f"{k}={v:.4f}" for k, v in metrics.items()]))
-
-                    for m, v in metrics.items():
-                        self.tb_writers.add_scalar(f"evaluate/{m}", v, self.epoch * len(self.train_dataloader))
                 
                 
-
             for k, v in loss.items():
                 self.running_scalars[k] = self.running_scalars[k] + v.detach().mean().item()
                 
@@ -295,8 +268,35 @@ class Trainer:
             torch.save(to_save, self.output_dir / f"epoch_{self.epoch:03d}.pt")
             self.logger.info(f"save checkpoint at {self.output_dir / f'epoch_{self.epoch:03d}.pt'}")
             
-     
-            
+    def val(self):
+        
+        with torch.no_grad():
+                
+                    self.model.eval()
+
+                    metrics = defaultdict(float)
+                    for n, (inputs, labels) in enumerate(self.val_dataloader):
+                        gamma=np.random.uniform(1.8,2.2)
+                        inputs = inputs.to(self.device)
+                        
+
+                        results = synthesis.batch_remove_flare(self, inputs, self.model, resolution=512)
+                        metrics["PSNR"] += K.metrics.psnr(results["pred_blend"], labels, 1.0).item()
+                        metrics["SSIM"] += (
+                            K.metrics.ssim(results["pred_blend"], labels, 11).mean().item()
+                        )
+
+                    for k in metrics:
+                        metrics[k] = metrics[k] / len(self.val_dataloader)
+
+                    self.model.train()
+
+                    self.logger.info(
+                        f"EPOCH[{self.epoch}/{self.opt.num_epoch}] metrics "
+                        + "\t".join([f"{k}={v:.4f}" for k, v in metrics.items()]))
+
+                    for m, v in metrics.items():
+                        self.tb_writers.add_scalar(f"evaluate/{m}", v, self.epoch * len(self.train_dataloader))
        
                 
                     
