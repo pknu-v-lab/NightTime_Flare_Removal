@@ -16,6 +16,7 @@ import torch.nn.functional as F
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 from data_loader import Flare_Image_Dataset, Blend_Image_Dataset
+import torch.nn.init as init
 from torch.utils.tensorboard import SummaryWriter
 from options import DeflareOptions
 import os
@@ -89,6 +90,7 @@ class Trainer:
         
                                                             
         self.model = UNet(in_channels=3, out_channels=3).to(self.device)
+        self.init_weights(self.model)
                                     
         #optimizer
         self.optimizer = Adam(self.model.parameters(), self.opt.lr)
@@ -96,6 +98,43 @@ class Trainer:
         torch.optim.lr_scheduler.MultiStepLR
         
         self.criterion = build_criterion(self)
+        
+        
+    def init_weights(self, net, init_type="xavier_uniform", init_gain=1):
+
+
+        def init_func(m):  # define the initialization function
+            classname = m.__class__.__name__
+            if hasattr(m, "weight") and (
+                classname.find("Conv") != -1 or classname.find("Linear") != -1
+            ):
+                if init_type == "normal":
+                    init.normal_(m.weight.data, 0.0, init_gain)
+                elif init_type == "xavier_normal":
+                    init.xavier_normal_(m.weight.data, gain=init_gain)
+                elif init_type == "xavier_uniform":
+                    init.xavier_uniform_(m.weight.data, gain=init_gain)
+                elif init_type == "kaiming":
+                    init.kaiming_normal_(
+                        m.weight.data, a=0, mode="fan_in", nonlinearity="relu"
+                    )
+                elif init_type == "orthogonal":
+                    init.orthogonal_(m.weight.data, gain=init_gain)
+                else:
+                    raise NotImplementedError(
+                        "initialization method [%s] is not implemented" % init_type
+                    )
+                if hasattr(m, "bias") and m.bias is not None:
+                    init.constant_(m.bias.data, 0.0)
+            elif (
+                classname.find("BatchNorm2d") != -1
+            ):  # BatchNorm Layer's weight is not a matrix;
+                # only normal distribution applies.
+                init.normal_(m.weight.data, 1.0, init_gain)
+                init.constant_(m.bias.data, 0.0)
+
+        self.logger.info("initialize network with %s" % init_type)
+        net.apply(init_func)  # apply the initialization function <init_func>
         
     def set_train(self):
         """Convert all models to training mode
@@ -116,10 +155,10 @@ class Trainer:
         self.start_time = time()
         for self.epoch in range(self.opt.num_epoch):
             self.run_epoch()
+
         self.logger.success(f"train over.")
             
-    
-    
+     
     def run_epoch(self):
         """Run a single epoch of training and validation
         """
@@ -152,7 +191,8 @@ class Trainer:
             masked_flare = pred_flare * (1 - flare_mask) + flare_img * flare_mask
             
             loss = dict()
-            loss_weights = { 'flare': {'l1': 1, 'perceptual': 1}, 'scene': {'l1': 1,'perceptual': 1}}
+            loss_weights = { 'flare': {'l1': 0, 'perceptual': 0, 'lpips' : 1, 'ffl':100},
+                        'scene': {'l1': 1,'perceptual': 0, 'lpips' : 1, 'ffl' : 0}}
             
             for t, pred, gt in[
                 ("scene", masked_scene, scene_img),
@@ -183,9 +223,35 @@ class Trainer:
             if early_phase or late_phase:
                 log_time(self, batch_idx, duration, total_loss.cpu())
                 
-                self.val()
                 
-               
+                
+                with torch.no_grad():
+                
+                    self.model.eval()
+
+                    metrics = defaultdict(float)
+                    for n, (inputs, labels) in enumerate(self.val_dataloader):
+                        gamma=np.random.uniform(1.8,2.2)
+                        inputs = inputs.to(self.device)
+                        
+
+                        results = synthesis.batch_remove_flare(self, inputs, self.model, resolution=512)
+                        metrics["PSNR"] += K.metrics.psnr(results["pred_blend"], labels, 1.0).item()
+                        metrics["SSIM"] += (
+                            K.metrics.ssim(results["pred_blend"], labels, 11).mean().item()
+                        )
+
+                    for k in metrics:
+                        metrics[k] = metrics[k] / len(self.val_dataloader)
+
+                    self.model.train()
+
+                    self.logger.info(
+                        f"EPOCH[{self.epoch}/{self.opt.num_epoch}] metrics "
+                        + "\t".join([f"{k}={v:.4f}" for k, v in metrics.items()]))
+
+                    for m, v in metrics.items():
+                        self.tb_writers.add_scalar(f"evaluate/{m}", v, self.epoch * len(self.train_dataloader))
                 
                 
 
@@ -219,7 +285,7 @@ class Trainer:
             
         self.logger.info(
             f"EPOCH[{self.epoch}/{self.opt.num_epoch}] END "
-            f"Taken {(time.time() - before_op_time) / 60.0:.4f} min"
+            f"Taken {(time() - before_op_time) / 60.0:.4f} min"
         )
         
         if self.epoch % 2 == 0:
@@ -231,34 +297,7 @@ class Trainer:
             
      
             
-    def val(self):
-         with torch.no_grad():
-                
-                    self.model.eval()
-
-                    metrics = defaultdict(float)
-                    for n, (inputs, labels) in enumerate(self.val_dataloader):
-                        gamma=np.random.uniform(1.8,2.2)
-                        inputs = inputs.to(self.device)
-                        
-
-                        results = synthesis.batch_remove_flare(self, inputs, self.model, resolution=512)
-                        metrics["PSNR"] += K.metrics.psnr(results["pred_blend"], labels, 1.0).item()
-                        metrics["SSIM"] += (
-                            K.metrics.ssim(results["pred_blend"], labels, 11).mean().item()
-                        )
-
-                    for k in metrics:
-                        metrics[k] = metrics[k] / len(self.val_dataloader)
-
-                    self.model.train()
-
-                    self.logger.info(
-                        f"EPOCH[{self.epoch}/{self.opt.num_epoch}] metrics "
-                        + "\t".join([f"{k}={v:.4f}" for k, v in metrics.items()]))
-
-                    for m, v in metrics.items():
-                        self.tb_writers.add_scalar(f"evaluate/{m}", v, self.epoch * len(self.train_dataloader))
+       
                 
                     
                 

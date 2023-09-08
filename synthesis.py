@@ -23,6 +23,7 @@ _EPS = 1e-7
 def remove_flare(combined, flare, gamma=2.2):
     # Avoid zero. Otherwise, the gradient of pow() below will be undefined when
     # gamma < 1.
+
     combined = combined.clamp(_EPS, 1.0)
     flare = flare.clamp(_EPS, 1.0)
     if torch.is_tensor(gamma):

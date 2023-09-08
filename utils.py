@@ -8,7 +8,8 @@ import os
 import time
 
 def build_criterion(self):
-        loss_weights = { 'flare': {'l1': 1, 'perceptual': 1}, 'scene': {'l1': 1,'perceptual': 1}}
+        loss_weights = { 'flare': {'l1': 0, 'perceptual': 0, 'lpips' : 1, 'ffl':100},
+                        'scene': {'l1': 1,'perceptual': 0, 'lpips' : 1, 'ffl' : 0}}
 
         
         loss_perceptual = {'layers': {'conv1_2': 0.384615,
