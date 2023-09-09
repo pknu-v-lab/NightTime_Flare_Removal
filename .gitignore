@@ -2,3 +2,5 @@ data/
 *.pyc
 log/
 *.log
+output/
+training.log

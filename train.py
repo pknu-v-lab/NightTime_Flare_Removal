@@ -258,15 +258,14 @@ class Trainer:
             
         self.logger.info(
             f"EPOCH[{self.epoch}/{self.opt.num_epoch}] END "
-            f"Taken {(time() - before_op_time) / 60.0:.4f} min"
+            f"Taken {(time() - before_op_time) / 60.0} min"
         )
         
         if self.epoch % 2 == 0:
             to_save = dict(
                 g=self.model.state_dict(), g_optim=self.optimizer.state_dict(), epoch=self.epoch
             )
-            torch.save(to_save, self.output_dir / f"epoch_{self.epoch:03d}.pt")
-            self.logger.info(f"save checkpoint at {self.output_dir / f'epoch_{self.epoch:03d}.pt'}")
+            torch.save(to_save, os.path.join(self.output_dir, f"epoch_{self.epoch:03d}.pt"))
             
     def val(self):
         
@@ -276,7 +275,6 @@ class Trainer:
 
                     metrics = defaultdict(float)
                     for n, (inputs, labels) in enumerate(self.val_dataloader):
-                        gamma=np.random.uniform(1.8,2.2)
                         inputs = inputs.to(self.device)
                         
 
