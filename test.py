@@ -10,7 +10,6 @@ import os
 
 import synthesis
 from networks import unet
-from data_loader import Blend_Image_Dataset, Flare_Image_Dataset
 
 
 
@@ -19,7 +18,6 @@ parser.add_argument('--ckp_path',
                     type=str, default='./pretrained/epoch_020.pt')
 parser.add_argument('--image_path', type=str, default='./data/test')
 parser.add_argument('--result_path', type=str, default='./data/result')
-parser.add_argument('--seed', type=int, default=2023)
 parser.add_argument('--ext', type=str, default="png")
 
 args = parser.parse_args()
@@ -36,7 +34,7 @@ def save_outputs(result, result_path, idx, resolution=512):
         seperate_path = os.path.join(result_path, k)
         if not os.path.exists(seperate_path):
              os.makedirs(seperate_path)
-        torchvision.utils.save_image(image, seperate_path+ '/' + str(idx) + '.' +args.ext)
+        torchvision.utils.save_image(image, seperate_path+ '/' + str(idx) + '.' + args.ext)
 
 
 def remove_flare(model, image):
@@ -99,7 +97,7 @@ def test(args):
         # 이미지 한 개 테스트
         paths = [paths]
     else:
-        raise Exception("Can't find args.image_path: {}".format(args.paths))
+        raise Exception("Can't find args.image_path: {}".format(args.image_path))
 
     print("-> Predicting on {:d} test images".format(len(paths)))
 
