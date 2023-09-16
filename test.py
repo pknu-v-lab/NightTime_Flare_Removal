@@ -3,13 +3,17 @@ import torch
 import torchvision
 import torch.nn.functional as F
 import torchvision.transforms as T
-import PIL.Image as pil
+from collections import defaultdict
+from utils import get_logger
+import kornia as K
+import logging
 import argparse
 import glob
 import os
 
 import synthesis
 from networks import unet
+from data_loader import Blend_Image_Dataset
 
 
 
@@ -19,6 +23,7 @@ parser.add_argument('--ckp_path',
 parser.add_argument('--image_path', type=str, default='./data/test')
 parser.add_argument('--result_path', type=str, default='./data/result')
 parser.add_argument('--ext', type=str, default="png")
+parser.add_argument('--log_path', type=str, default='./log')
 
 args = parser.parse_args()
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -44,9 +49,8 @@ def remove_flare(model, image):
     """
 
     inputs = image
-    w, h = inputs.size
+    _, w, h = inputs.shape
 
-    inputs = T.ToTensor()(inputs)
     inputs = inputs.cuda().unsqueeze(0)     # (1,3,h,w)
 
 
@@ -76,42 +80,56 @@ def test(args):
 
     # model 불러오기
     ckp_path = args.ckp_path
-    print("Loading model from", ckp_path)
-    model = unet.UNet(in_channels=3, out_channels=3).cuda()
-    ckp = torch.load(ckp_path, map_location=torch.device("cpu"))
-    model.load_state_dict(ckp["g"])
-    model.eval()
+
+    if os.path.isfile(ckp_path):
+        print("Loading model from", ckp_path)
+        model = unet.UNet(in_channels=3, out_channels=3).cuda()
+        ckp = torch.load(ckp_path, map_location=torch.device("cpu"))
+        model.load_state_dict(ckp["g"])
+        model.eval()
+    else: raise Exception("Can't find args.ckp_path: {}".format(args.ckp_path))
 
     # result path
     result_path = args.result_path
 
     if not os.path.exists(result_path):
         os.makedirs(result_path)
+
+    # logging
+    if not os.path.exists(args.log_path):
+        os.makedirs(args.log_path)
     
-    # input image path
-    paths = args.image_path
-    if os.path.isdir(paths):
-        # 이미지 여러개 테스트
-        paths = glob.glob(os.path.join(paths, '*.{}'.format(args.ext)))
-    elif os.path.isfile(paths):
-        # 이미지 한 개 테스트
-        paths = [paths]
-    else:
-        raise Exception("Can't find args.image_path: {}".format(args.image_path))
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s - %(message)s')
 
-    print("-> Predicting on {:d} test images".format(len(paths)))
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(formatter)
+    logger.addHandler(stream_handler)
 
-    # Flare removal 
+    log_filename = os.path.join(args.log_path, 'test.log')
+    file_handler = logging.FileHandler(log_filename)
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+    metrics = defaultdict(float)
+
+    # dataloader
+    test_dataloader = Blend_Image_Dataset(args.image_path)
+
     with torch.no_grad():
-        for idx, image_path in enumerate(paths):
-            
-            # Load images
-            inputs = pil.open(image_path).convert('RGB')
-            results = remove_flare(model, inputs)
+        for idx, (image, gt) in enumerate(test_dataloader):
+            results = remove_flare(model, image)
             save_outputs(results, result_path, idx)
-            # test = T.ToPILImage()(results['pred_blend'].squeeze(0))
-            # test.show()
             
+            metrics['PSNR'] = K.metrics.psnr(results['pred_blend'].squeeze(0), gt, 1.0).item()
+            metrics['SSIM'] = K.metrics.ssim(results['pred_blend'], gt.unsqueeze(0), 11).mean().item()
+
+            logger.info(
+                f"Test Image [{idx}/{len(test_dataloader)}] metrics "
+                + "\t".join([f"{k}={v:.4f}" for k, v in metrics.items()]))
+
+
     print("Done!!")
 
 
