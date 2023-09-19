@@ -6,7 +6,7 @@ import random
 import torch
 import kornia as K
 from collections import defaultdict
-from utils import get_logger, build_criterion,grid_transpose, log_time
+from utils import get_logger, build_criterion,grid_transpose, log_time, load_ckp
 from torch.optim import Adam, lr_scheduler
 import torch.backends.cudnn as cudnn
 from networks import UNet
@@ -78,12 +78,11 @@ class Trainer:
                               pin_memory=True,
                               num_workers=0)
         
-        self.val_flare_image_dataset = Blend_Image_Dataset(self.opt, self.opt.val, transform_base=self.transform_base, mode='valid')
+        self.val_flare_image_dataset = Blend_Image_Dataset(self.opt.val, transform_base=self.transform_base, mode='valid')
         self.val_dataloader = DataLoader(dataset=self.val_flare_image_dataset,
                                          batch_size=1,
                                          shuffle=False)
-        
-        
+            
         
         num_train_samples = len(self.train_dataloader)
         self.num_total_steps = num_train_samples // self.opt.batch_size * self.opt.num_epoch
@@ -149,10 +148,19 @@ class Trainer:
     def train(self):
         """Run the entire training pipeline
         """
-        
+
         self.epoch = 0
         self.step = 0
         self.start_time = time()
+
+        if self.opt.resume == True:
+            ckp_list = os.listdir(self.output_dir)
+            ckp_list.sort(reverse=True)
+            self.model, self.optimizer, self.epoch = load_ckp(
+                os.path.join(self.output_dir, ckp_list[0]),
+                self.model, self.optimizer)
+            print(f">> Training starts from the Epoch {self.epoch}")
+
         for self.epoch in range(self.opt.num_epoch):
             self.run_epoch()
 
@@ -162,7 +170,7 @@ class Trainer:
     def run_epoch(self):
         """Run a single epoch of training and validation
         """
-        
+
         self.scheduler.step()
 
 
@@ -179,6 +187,7 @@ class Trainer:
             merge_img = merge_img.to(self.device).float()
             gamma = gamma.to(self.device).float()
             
+
             pred_scene = self.model(merge_img).clamp(0.0, 1.0)
             pred_flare = synthesis.remove_flare(merge_img, pred_scene, gamma)
             

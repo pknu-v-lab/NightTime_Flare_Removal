@@ -49,8 +49,10 @@ class DeflareOptions:
                                  default=2023, 
                                  type=int, 
                                  help='random crop size')
-        
-        
+        self.parser.add_argument("--resume",
+                                 default=True,
+                                 type=bool,
+                                 help="resume training from checkpoint")
         
         
         # Optimization options 
