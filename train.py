@@ -155,14 +155,18 @@ class Trainer:
 
         if self.opt.resume == True:
             ckp_list = os.listdir(self.output_dir)
-            ckp_list.sort(reverse=True)
+            ckp_list.sort()
             self.model, self.optimizer, self.epoch = load_ckp(
-                os.path.join(self.output_dir, ckp_list[0]),
+                os.path.join(self.output_dir, ckp_list[-1]),
                 self.model, self.optimizer)
             print(f">> Training starts from the Epoch {self.epoch}")
 
-        for self.epoch in range(self.opt.num_epoch):
-            self.run_epoch()
+            for self.epoch in range(self.epoch, self.opt.num_epoch):
+                self.run_epoch()
+
+        else:
+            for self.epoch in range(self.opt.num_epoch):
+                self.run_epoch()
 
         self.logger.success(f"train over.")
             
