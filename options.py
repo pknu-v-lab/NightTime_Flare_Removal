@@ -34,8 +34,19 @@ class DeflareOptions:
                                  default="./log",
                                  type=str,
                                  help="log directory")
+        self.parser.add_argument("--results_dir",
+                                 default="./data/results",
+                                 type=str,
+                                 )
+        self.parser.add_argument("--test_dir",
+                                 default="./data/test",
+                                 type=str,
+                                 )
         
-        
+        self.parser.add_argument("--output_path",
+                                 default="./output/epoch_042.pt",
+                                 type=str,
+                                 )
         
         # Training options
         self.parser.add_argument("--model_name", 
