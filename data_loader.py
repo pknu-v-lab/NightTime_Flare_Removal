@@ -45,7 +45,7 @@ def remove_background(image):
 
 
 class Blend_Image_Dataset(data.Dataset):
-    def __init__(self, opt, data_dir, transform_base=None, mode='valid'):
+    def __init__(self, data_dir, transform_base=None, mode='valid'):
         
         self._load_blend_img_list(data_dir=data_dir)
         self._load_gt_img_list(data_dir=data_dir)

@@ -18,7 +18,7 @@ device = torch.device("cpu" if torch.cuda.is_available else "cuda")
 parser = argparse.ArgumentParser(description="Test")
 parser.add_argument('--image_path', type=str, default='./data/test')
 parser.add_argument('--result_path', type=str, default='./data/result')
-parser.add_argument('--ckp_path', type = str, help = "Checkpoint path for model", default = './ckp/epoch_044.pt')
+parser.add_argument('--ckp_path', type = str, help = "Checkpoint path for model", default = './checkpoints/epoch_044.pt')
 parser.add_argument('--log_path', type = str, help = "Path to log", default = './log' )
 arg = parser.parse_args()
 

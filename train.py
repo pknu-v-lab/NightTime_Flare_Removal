@@ -6,7 +6,7 @@ import random
 import torch
 import kornia as K
 from collections import defaultdict
-from utils import get_logger, build_criterion,grid_transpose, log_time
+from utils import get_logger, build_criterion,grid_transpose, log_time, save, load
 from torch.optim import Adam, lr_scheduler
 import torch.backends.cudnn as cudnn
 from networks import UNet
@@ -78,7 +78,7 @@ class Trainer:
                               pin_memory=True,
                               num_workers=0)
         
-        self.val_flare_image_dataset = Blend_Image_Dataset(self.opt, self.opt.val, transform_base=self.transform_base, mode='valid')
+        self.val_flare_image_dataset = Blend_Image_Dataset(self.opt.val, transform_base=self.transform_base, mode='valid')
         self.val_dataloader = DataLoader(dataset=self.val_flare_image_dataset,
                                          batch_size=1,
                                          shuffle=False)
@@ -153,7 +153,11 @@ class Trainer:
         self.epoch = 0
         self.step = 0
         self.start_time = time()
-        for self.epoch in range(self.opt.num_epoch):
+        self.st_epoch = 0
+        if self.opt.train_continue == "on":
+            self.model, self.optimizer, self.st_epoch = load(ckpt_dir = self.opt.ckpt_dir, model = self.model, optimizer = self.optimizer)
+            
+        for self.epoch in range(self.st_epoch + 1 ,self.opt.num_epoch):
             self.run_epoch()
 
         self.logger.success(f"train over.")
@@ -262,11 +266,10 @@ class Trainer:
         )
         
         if self.epoch % 2 == 0:
-            to_save = dict(
-                g=self.model.state_dict(), g_optim=self.optimizer.state_dict(), epoch=self.epoch
-            )
-            torch.save(to_save, os.path.join(self.output_dir, f"epoch_{self.epoch:03d}.pt"))
-            
+            save(self.output_dir, self.model, self.optimizer, self.epoch)
+        
+    
+        
     def val(self):
         
         with torch.no_grad():
