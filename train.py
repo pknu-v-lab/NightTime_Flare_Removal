@@ -159,9 +159,9 @@ class Trainer:
             self.model, self.optimizer, self.epoch = load_ckp(
                 os.path.join(self.output_dir, ckp_list[-1]),
                 self.model, self.optimizer)
-            print(f">> Training starts from the Epoch {self.epoch}")
+            print(f">> Training starts from the Epoch {self.epoch+1}")
 
-            for self.epoch in range(self.epoch, self.opt.num_epoch):
+            for self.epoch in range(self.epoch+1, self.opt.num_epoch):
                 self.run_epoch()
 
         else:
