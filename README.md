@@ -38,4 +38,6 @@
    │    └── input
    │
    └── test
+        ├── gt
+        └── input
 ```
