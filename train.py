@@ -6,7 +6,11 @@ import random
 import torch
 import kornia as K
 from collections import defaultdict
+<<<<<<< HEAD
 from utils import get_logger, build_criterion,grid_transpose, log_time, save, load
+=======
+from utils import get_logger, build_criterion,grid_transpose, log_time, load_ckp
+>>>>>>> origin/hoju
 from torch.optim import Adam, lr_scheduler
 import torch.backends.cudnn as cudnn
 from networks import UNet
@@ -82,8 +86,7 @@ class Trainer:
         self.val_dataloader = DataLoader(dataset=self.val_flare_image_dataset,
                                          batch_size=1,
                                          shuffle=False)
-        
-        
+            
         
         num_train_samples = len(self.train_dataloader)
         self.num_total_steps = num_train_samples // self.opt.batch_size * self.opt.num_epoch
@@ -149,16 +152,25 @@ class Trainer:
     def train(self):
         """Run the entire training pipeline
         """
-        
+
         self.epoch = 0
         self.step = 0
         self.start_time = time()
-        self.st_epoch = 0
-        if self.opt.train_continue == "on":
-            self.model, self.optimizer, self.st_epoch = load(ckpt_dir = self.opt.ckpt_dir, model = self.model, optimizer = self.optimizer)
-            
-        for self.epoch in range(self.st_epoch + 1 ,self.opt.num_epoch):
-            self.run_epoch()
+
+        if self.opt.resume == True:
+            ckp_list = os.listdir(self.output_dir)
+            ckp_list.sort()
+            self.model, self.optimizer, self.epoch = load_ckp(
+                os.path.join(self.output_dir, ckp_list[-1]),
+                self.model, self.optimizer)
+            print(f">> Training starts from the Epoch {self.epoch + 1}")
+
+            for self.epoch in range(self.epoch + 1, self.opt.num_epoch):
+                self.run_epoch()
+
+        else:
+            for self.epoch in range(self.opt.num_epoch):
+                self.run_epoch()
 
         self.logger.success(f"train over.")
             
@@ -166,7 +178,7 @@ class Trainer:
     def run_epoch(self):
         """Run a single epoch of training and validation
         """
-        
+
         self.scheduler.step()
 
 
@@ -183,6 +195,7 @@ class Trainer:
             merge_img = merge_img.to(self.device).float()
             gamma = gamma.to(self.device).float()
             
+
             pred_scene = self.model(merge_img).clamp(0.0, 1.0)
             pred_flare = synthesis.remove_flare(merge_img, pred_scene, gamma)
             

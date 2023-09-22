@@ -68,7 +68,15 @@ def get_logger(self):
 
         return logger
     
-    
+
+def load_ckp(checkpoint_path, model, optimizer):
+     checkpoint = torch.load(checkpoint_path)
+     model.load_state_dict(checkpoint["g"])
+     optimizer.load_state_dict(checkpoint["g_optim"])
+
+     return model, optimizer, checkpoint['epoch']
+
+
 def grid_transpose(
     tensors: Union[torch.Tensor, Iterable], original_nrow: Optional[int] = None
 ) -> torch.Tensor:
