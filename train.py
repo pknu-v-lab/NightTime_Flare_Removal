@@ -20,6 +20,7 @@ import torch.nn.init as init
 from torch.utils.tensorboard import SummaryWriter
 from options import DeflareOptions
 import os
+import json
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
 
@@ -98,6 +99,8 @@ class Trainer:
         torch.optim.lr_scheduler.MultiStepLR
         
         self.criterion = build_criterion(self)
+        
+        self.save_opts()
         
         
     def init_weights(self, net, init_type="xavier_uniform", init_gain=1):
@@ -295,6 +298,17 @@ class Trainer:
 
                     for m, v in metrics.items():
                         self.tb_writers.add_scalar(f"evaluate/{m}", v, self.epoch * len(self.train_dataloader))
+    
+    def save_opts(self):
+        
+        models_dir = os.path.join(self.log_path, "models")
+        if not os.path.exists(models_dir):
+            os.makedirs(models_dir)
+        to_save = self.opt.__dict__.copy()
+
+        with open(os.path.join(models_dir, 'opt.json'), 'w') as f:
+            json.dump(to_save, f, indent=4)
+
        
                 
                     
