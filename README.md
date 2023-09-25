@@ -38,6 +38,8 @@
    │    └── input
    │
    └── test
+        ├── gt
+        └── input
 ```
 ### Dataset
 - [Nighttime dataset](https://github.com/aasharma90/NightTime_Datasets) |  데이터셋 모음 |

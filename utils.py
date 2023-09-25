@@ -68,7 +68,15 @@ def get_logger(self):
 
         return logger
     
-    
+
+def load_ckp(checkpoint_path, model, optimizer):
+     checkpoint = torch.load(checkpoint_path)
+     model.load_state_dict(checkpoint["g"])
+     optimizer.load_state_dict(checkpoint["g_optim"])
+
+     return model, optimizer, checkpoint['epoch']
+
+
 def grid_transpose(
     tensors: Union[torch.Tensor, Iterable], original_nrow: Optional[int] = None
 ) -> torch.Tensor:
@@ -131,4 +139,28 @@ def log_time(self, batch_idx, duration, loss, ):
                 " | loss: {:.5f} | time elapsed: {} | time left: {}"
         print(print_string.format(self.epoch, batch_idx, samples_per_sec, loss, 
                                 sec_to_hm_str(time_sofar), sec_to_hm_str(training_time_left)))
+        
+
+# 네트워크 저장하기
+def save(ckpt_dir, model, optimizer, epoch):
+    if not os.path.exists(ckpt_dir):
+        os.makedirs(ckpt_dir)
+    
+    torch.save({'model' : model.state_dict(), 'model' : optimizer.state_dict()}, "./%s/model_epoch%d.pth" %(ckpt_dir, epoch))
+# 너트워크 불러오기
+def load(ckpt_dir, model, optimizer):
+    if not os.path.exists(ckpt_dir):
+        epoch = 0
+        return model, optimizer, epoch
+    
+    ckpt_lst = os.listdir(ckpt_dir)
+    ckpt_lst.sort(key = lambda f : int(''.join(filter(str.isdigit, f))))
+    
+    dict_model = torch.load('./%s/%s' %(ckpt_dir, ckpt_lst[-1]))
+    
+    model.load_state_dict(dict_model['model'])
+    optimizer.load_state_dict(dict_model['optimizer'])
+    epoch = int(ckpt_lst[-1].split('epoch')[1].split('.pth')[0])
+    
+    return model, optimizer, epoch
        
