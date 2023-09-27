@@ -6,11 +6,7 @@ import random
 import torch
 import kornia as K
 from collections import defaultdict
-<<<<<<< HEAD
-from utils import get_logger, build_criterion,grid_transpose, log_time, save, load
-=======
 from utils import get_logger, build_criterion,grid_transpose, log_time, load_ckp
->>>>>>> origin/hoju
 from torch.optim import Adam, lr_scheduler
 import torch.backends.cudnn as cudnn
 from networks import UNet
@@ -282,7 +278,10 @@ class Trainer:
         )
         
         if self.epoch % 2 == 0:
-            save(self.output_dir, self.model, self.optimizer, self.epoch)
+            to_save = dict(
+                g=self.model.state_dict(), g_optim=self.optimizer.state_dict(), epoch=self.epoch
+            )
+            torch.save(to_save, os.path.join(self.output_dir, f"epoch_{self.epoch:03d}.pt"))
         
     
         

@@ -65,7 +65,7 @@ class DeflareOptions:
                                  type=float,
                                  help="learning rate")
         self.parser.add_argument("--num_epoch", 
-                                 default=50, 
+                                 default=100, 
                                  type=int, 
                                  help="total epoch")
         
