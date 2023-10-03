@@ -40,7 +40,12 @@ class DeflareOptions:
         # Training options
         self.parser.add_argument("--model_name", 
                                  type=str, 
-                                 help="the name of the folder to save the model in")
+                                 help="the name of the folder to save the model",
+                                 default="NaFNET")
+        self.parser.add_argument("--model",
+                                 type=str,
+                                 default="NAFNet",
+                                 help="available options: NAFNet, UNet")
         self.parser.add_argument('--deterninistic', 
                                  default=False, 
                                  type=bool,
@@ -50,7 +55,7 @@ class DeflareOptions:
                                  type=int, 
                                  help='random crop size')
         self.parser.add_argument("--resume",
-                                 default=True,
+                                 default=False,
                                  type=bool,
                                  help="resume training from checkpoint")
         

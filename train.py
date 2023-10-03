@@ -9,7 +9,7 @@ from collections import defaultdict
 from utils import get_logger, build_criterion,grid_transpose, log_time, load_ckp
 from torch.optim import Adam, lr_scheduler
 import torch.backends.cudnn as cudnn
-from networks import UNet
+from networks import *
 import synthesis
 import torchvision
 import torch.nn.functional as F
@@ -88,8 +88,13 @@ class Trainer:
         num_train_samples = len(self.train_dataloader)
         self.num_total_steps = num_train_samples // self.opt.batch_size * self.opt.num_epoch
         
-                                                            
-        self.model = UNet(in_channels=3, out_channels=3).to(self.device)
+        
+        if self.opt.model == 'NAFNet':
+            self.model = NAFNet().to(self.device)
+        
+        if self.opt.model == 'UNet':
+            self.model = UNet(in_channels=3, out_channels=3).to(self.device)
+        
         self.init_weights(self.model)
                                     
         #optimizer
