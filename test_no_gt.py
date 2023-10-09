@@ -116,12 +116,8 @@ def test(args):
 
     metrics = defaultdict(float)
 
-    # dataloader
-    # test_dataloader = Blend_Image_Dataset(args.image_path)
-    # test_no_gt = os.listdir('./data/test_no_gt')
     to_tensor = transforms.ToTensor()
     test_no_gt = [test for test in os.listdir('./data/test_no_gt')]
-    # only_flare = [flare for flare in os.listdir('./data/flare/Flare')]
     
     with torch.no_grad():
         for idx, image in enumerate(test_no_gt):
