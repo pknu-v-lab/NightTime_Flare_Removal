@@ -1,28 +1,33 @@
 import os
 from skimage.metrics import mean_squared_error
-from skimage.measure import compare_psnr
-from skimage import io, color
+from skimage import io
 import numpy as np
 from statistics import mean
 import sys
 
-input_dir = sys.argv[1]
-output_dir = sys.argv[2]
+input_dir = './data/result'
+output_dir = './data/result'
 
-input_folder = os.path.join(input_dir, 'res')
-gt_folder = os.path.join(input_dir, 'ref/gt')
-mask_folder = os.path.join(input_dir, 'ref/mask')
+input_folder = os.path.join(input_dir, 'input')
+gt_folder = os.path.join(input_dir, 'pred_blend') #pred_scene ? pred_blend?
+mask_folder = os.path.join(input_dir, 'pred_flare')
 
 output_filename = os.path.join(output_dir, 'scores.txt')
 
-mask_type_list=['glare','streak','global']
-gt_list=sorted(os.listdir(gt_folder))
-input_list = list(map(lambda x: os.path.join(input_folder,x.replace('gt', 'input')), gt_list))
-mask_list = list(map(lambda x: os.path.join(mask_folder,x.replace('gt', 'mask')), gt_list))
-gt_list = list(map(lambda x: os.path.join(gt_folder,x), gt_list))
+mask_type_list = ['glare','streak','global']
+gt_list = sorted(os.listdir(gt_folder))
 
-img_num=len(gt_list)
-metric_dict={'glare':[],'streak':[],'global':[]}
+input_list = [input_image for input_image in os.listdir(input_folder)]
+#input_list = list(map(lambda x: os.path.join(input_folder,x.replace('gt', 'input')), gt_list))
+
+mask_list = list([mask_image for mask_image in os.listdir(mask_folder)])
+#mask_list = list(map(lambda x: os.path.join(mask_folder,x.replace('gt', 'mask')), gt_list))
+
+gt_list = list([gt_image for gt_image in os.listdir(gt_folder)])
+#gt_list = list(map(lambda x: os.path.join(gt_folder,x), gt_list))
+
+img_num = len(gt_list)
+metric_dict = {'glare':[],'streak':[],'global':[]}
 
 def extract_mask(img_seg):
     # Return a dict with 3 masks including streak,glare,global(whole image w/o light source), masks are returned in 3ch. 
@@ -40,9 +45,9 @@ def extract_mask(img_seg):
     return mask_dict
 
 for i in range(img_num):
-    img_gt=io.imread(gt_list[i])
-    img_input=io.imread(input_list[i])
-    img_seg=io.imread(mask_list[i])
+    img_gt=io.imread(os.path.join(gt_folder,gt_list[i]))
+    img_input=io.imread(os.path.join(input_folder,input_list[i]))
+    img_seg=io.imread(os.path.join(mask_folder,mask_list[i]))
     for mask_type in mask_type_list:
         mask_area,img_mask=extract_mask(img_seg)[mask_type]
         if mask_area>0:
@@ -58,9 +63,9 @@ global_psnr=mean(metric_dict['global'])
 
 mean_psnr=mean([glare_psnr,streak_psnr,global_psnr])
 
-
 with open(output_filename, 'w') as f:
     f.write('{}: {}\n'.format('G-PSNR', glare_psnr))
     f.write('{}: {}\n'.format('S-PSNR', streak_psnr))
+    f.write('{}:{}\n'.format('global',global_psnr))
     f.write('{}: {}\n'.format('Score', mean_psnr))
     f.write('DEVICE: CPU\n')
