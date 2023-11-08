@@ -21,6 +21,7 @@ from torch.utils.tensorboard import SummaryWriter
 from options import DeflareOptions
 import os
 import json
+from losses import photometric_error_loss as pe
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
 
