@@ -127,13 +127,17 @@ def sec_to_hm_str(t):
     return "{:02d}h{:02d}m{:02d}s".format(h, m, s)
 
 
-def log_time(self, batch_idx, duration, loss, ):
+def log_time(self, batch_idx, duration, loss):
         """Print a logging statement to the terminal
         """
         samples_per_sec = self.opt.batch_size / duration
         time_sofar = time.time() - self.start_time
-        training_time_left = (
-            self.num_total_steps / self.step - 1.0) * time_sofar if self.step > 0 else 0
+        remaining_steps = self.num_total_steps - self.step
+        if self.step > 0:
+            training_time_left = remaining_steps * (time_sofar / self.step)
+        else:
+            training_time_left = 0
+
    
         print_string = "epoch {:>3} | batch {:>6} | examples/s: {:5.1f}" + \
                 " | loss: {:.5f} | time elapsed: {} | time left: {}"

@@ -12,19 +12,21 @@ import glob
 import os
 
 import synthesis
-from networks import unet
+from networks import *
 from data_loader import Blend_Image_Dataset
-
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--ckp_path',
-                    type=str, default='./pretrained/epoch_044.pt')
+                    type=str, default='./output/naf_20.pt')
 parser.add_argument('--image_path', type=str, default='./data/test')
-parser.add_argument('--result_path', type=str, default='./data/result')
+parser.add_argument('--result_path', type=str, default='./data/result/naf_20_real')
 parser.add_argument('--ext', type=str, default="png")
 parser.add_argument('--log_path', type=str, default='./log')
-
+parser.add_argument("--model",
+                                 type=str,
+                                 default="NAFNet",
+                                 help="available options: NAFNet, UNet")
 args = parser.parse_args()
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -83,7 +85,12 @@ def test(args):
 
     if os.path.isfile(ckp_path):
         print("Loading model from", ckp_path)
-        model = unet.UNet(in_channels=3, out_channels=3).cuda()
+        model = UNet(in_channels=3, out_channels=3)
+        if args.model == 'NAFNet':
+            model = NAFNet().cuda()
+        
+        if args.model == 'UNet':
+            model = UNet(in_channels=3, out_channels=3).cuda()
         ckp = torch.load(ckp_path, map_location=torch.device("cpu"))
         model.load_state_dict(ckp["g"])
         model.eval()
