@@ -6,11 +6,7 @@ import random
 import torch
 import kornia as K
 from collections import defaultdict
-<<<<<<< HEAD
-from utils import get_logger, build_criterion,grid_transpose, log_time, save, load
-=======
-from utils import get_logger, build_criterion,grid_transpose, log_time, load_ckp
->>>>>>> origin/hoju
+from utils import get_logger, build_criterion,grid_transpose, load_ckp, log_time, save, load
 from torch.optim import Adam, lr_scheduler
 import torch.backends.cudnn as cudnn
 from networks import UNet
@@ -24,6 +20,7 @@ import torch.nn.init as init
 from torch.utils.tensorboard import SummaryWriter
 from options import DeflareOptions
 import os
+from losses import photometric_error_loss as pe
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
 
@@ -74,7 +71,7 @@ class Trainer:
                               ])
         self.train_flare_image_dataset = Flare_Image_Dataset(self.opt.base_img, self.transform_base, self.transform_flare, mode='train')
         self.train_flare_image_dataset.load_scattering_flare(self.opt.flare_img, os.path.join(self.opt.flare_img, 'Flare'))
-        
+        self.train_flare_image_dataset.load_light_source(self.opt.flare_img, os.path.join(self.opt.flare_img, 'Annotations/Light_Source'))
         
         self.train_dataloader = DataLoader(dataset=self.train_flare_image_dataset,
                               batch_size=self.opt.batch_size,
@@ -188,12 +185,13 @@ class Trainer:
         for batch_idx, inputs in enumerate(self.train_dataloader):
             
             before_op_time = time()
-            scene_img, flare_img, merge_img, gamma = inputs
+            scene_img, flare_img, merge_img, gamma, light_source_img = inputs
             
             scene_img = scene_img.to(self.device).float()
             flare_img = flare_img.to(self.device).float()
             merge_img = merge_img.to(self.device).float()
             gamma = gamma.to(self.device).float()
+            light_source_img = light_source_img.to(self.device).float()
             
 
             pred_scene = self.model(merge_img).clamp(0.0, 1.0)
@@ -206,6 +204,14 @@ class Trainer:
             # it matches the surrounding scenes.
             masked_scene = pred_scene * (1 - flare_mask) + scene_img * flare_mask
             masked_flare = pred_flare * (1 - flare_mask) + flare_img * flare_mask
+
+
+            """
+            Compute Photometric error loss
+            """
+            blend_light_source = light_source_img + scene_img
+            criterion = pe.PELoss().to(self.device)
+
             
             loss = dict()
             loss_weights = { 'flare': {'l1': 0, 'perceptual': 0, 'lpips' : 1, 'ffl':100},
@@ -225,8 +231,11 @@ class Trainer:
                     if loss_weights[t].get(k, 0.0) > 0:
                         loss[f"{t}_{k}"] = loss_weights[t].get(k, 0.0) * l[k]
             
+            pe_loss = criterion(blend_light_source, gt)
+            pe_weight = 1
+
             self.optimizer.zero_grad()
-            total_loss = sum(loss.values())
+            total_loss = sum(loss.values()) + (pe_weight * pe_loss)
             total_loss.backward()
             self.optimizer.step()
         

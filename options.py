@@ -50,7 +50,7 @@ class DeflareOptions:
                                  type=int, 
                                  help='random crop size')
         self.parser.add_argument("--resume",
-                                 default=True,
+                                 default=False,
                                  type=bool,
                                  help="resume training from checkpoint")
         
@@ -59,7 +59,7 @@ class DeflareOptions:
         self.parser.add_argument("--batch_size",
                                  type=int,
                                  help="batch size",
-                                 default=4)
+                                 default=2)
         self.parser.add_argument("--lr",
                                  default=1e-4,
                                  type=float,
