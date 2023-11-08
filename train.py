@@ -6,10 +6,10 @@ import random
 import torch
 import kornia as K
 from collections import defaultdict
-from utils import get_logger, build_criterion,grid_transpose, load_ckp, log_time, save, load
+from utils import get_logger, build_criterion,grid_transpose, log_time, load_ckp
 from torch.optim import Adam, lr_scheduler
 import torch.backends.cudnn as cudnn
-from networks import UNet
+from networks import *
 import synthesis
 import torchvision
 import torch.nn.functional as F
@@ -20,7 +20,7 @@ import torch.nn.init as init
 from torch.utils.tensorboard import SummaryWriter
 from options import DeflareOptions
 import os
-from losses import photometric_error_loss as pe
+import json
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
 
@@ -88,8 +88,13 @@ class Trainer:
         num_train_samples = len(self.train_dataloader)
         self.num_total_steps = num_train_samples // self.opt.batch_size * self.opt.num_epoch
         
-                                                            
-        self.model = UNet(in_channels=3, out_channels=3).to(self.device)
+        
+        if self.opt.model == 'NAFNet':
+            self.model = NAFNet().to(self.device)
+        
+        if self.opt.model == 'UNet':
+            self.model = UNet(in_channels=3, out_channels=3).to(self.device)
+        
         self.init_weights(self.model)
                                     
         #optimizer
@@ -98,6 +103,8 @@ class Trainer:
         torch.optim.lr_scheduler.MultiStepLR
         
         self.criterion = build_criterion(self)
+        
+        self.save_opts()
         
         
     def init_weights(self, net, init_type="xavier_uniform", init_gain=1):
@@ -288,7 +295,10 @@ class Trainer:
         )
         
         if self.epoch % 2 == 0:
-            save(self.output_dir, self.model, self.optimizer, self.epoch)
+            to_save = dict(
+                g=self.model.state_dict(), g_optim=self.optimizer.state_dict(), epoch=self.epoch
+            )
+            torch.save(to_save, os.path.join(self.output_dir, f"epoch_{self.epoch:03d}.pt"))
         
     
         
@@ -320,6 +330,17 @@ class Trainer:
 
                     for m, v in metrics.items():
                         self.tb_writers.add_scalar(f"evaluate/{m}", v, self.epoch * len(self.train_dataloader))
+    
+    def save_opts(self):
+        
+        models_dir = os.path.join(self.log_path, "models")
+        if not os.path.exists(models_dir):
+            os.makedirs(models_dir)
+        to_save = self.opt.__dict__.copy()
+
+        with open(os.path.join(models_dir, 'opt.json'), 'w') as f:
+            json.dump(to_save, f, indent=4)
+
        
                 
                     

@@ -40,7 +40,12 @@ class DeflareOptions:
         # Training options
         self.parser.add_argument("--model_name", 
                                  type=str, 
-                                 help="the name of the folder to save the model in")
+                                 help="the name of the folder to save the model",
+                                 default="NaFNET")
+        self.parser.add_argument("--model",
+                                 type=str,
+                                 default="NAFNet",
+                                 help="available options: NAFNet, UNet")
         self.parser.add_argument('--deterninistic', 
                                  default=False, 
                                  type=bool,
@@ -65,7 +70,7 @@ class DeflareOptions:
                                  type=float,
                                  help="learning rate")
         self.parser.add_argument("--num_epoch", 
-                                 default=50, 
+                                 default=100, 
                                  type=int, 
                                  help="total epoch")
         

@@ -127,40 +127,21 @@ def sec_to_hm_str(t):
     return "{:02d}h{:02d}m{:02d}s".format(h, m, s)
 
 
-def log_time(self, batch_idx, duration, loss, ):
+def log_time(self, batch_idx, duration, loss):
         """Print a logging statement to the terminal
         """
         samples_per_sec = self.opt.batch_size / duration
         time_sofar = time.time() - self.start_time
-        training_time_left = (
-            self.num_total_steps / self.step - 1.0) * time_sofar if self.step > 0 else 0
+        remaining_steps = self.num_total_steps - self.step
+        if self.step > 0:
+            training_time_left = remaining_steps * (time_sofar / self.step)
+        else:
+            training_time_left = 0
+
    
         print_string = "epoch {:>3} | batch {:>6} | examples/s: {:5.1f}" + \
                 " | loss: {:.5f} | time elapsed: {} | time left: {}"
         print(print_string.format(self.epoch, batch_idx, samples_per_sec, loss, 
                                 sec_to_hm_str(time_sofar), sec_to_hm_str(training_time_left)))
         
-
-# 네트워크 저장하기
-def save(ckpt_dir, model, optimizer, epoch):
-    if not os.path.exists(ckpt_dir):
-        os.makedirs(ckpt_dir)
-    
-    torch.save({'model' : model.state_dict(), 'model' : optimizer.state_dict()}, "./%s/model_epoch%d.pth" %(ckpt_dir, epoch))
-# 너트워크 불러오기
-def load(ckpt_dir, model, optimizer):
-    if not os.path.exists(ckpt_dir):
-        epoch = 0
-        return model, optimizer, epoch
-    
-    ckpt_lst = os.listdir(ckpt_dir)
-    ckpt_lst.sort(key = lambda f : int(''.join(filter(str.isdigit, f))))
-    
-    dict_model = torch.load('./%s/%s' %(ckpt_dir, ckpt_lst[-1]))
-    
-    model.load_state_dict(dict_model['model'])
-    optimizer.load_state_dict(dict_model['optimizer'])
-    epoch = int(ckpt_lst[-1].split('epoch')[1].split('.pth')[0])
-    
-    return model, optimizer, epoch
        

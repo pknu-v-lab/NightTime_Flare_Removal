@@ -4,6 +4,7 @@ import torchvision
 import torch.nn.functional as F
 import torchvision.transforms as T
 from collections import defaultdict
+import torchvision.transforms as transforms
 from utils import get_logger
 import kornia as K
 import logging
@@ -12,21 +13,20 @@ import glob
 import os
 
 import synthesis
-from networks import *
+from networks import unet
 from data_loader import Blend_Image_Dataset
+from PIL import Image
+
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--ckp_path',
-                    type=str, default='./output/naf_20.pt')
+                    type=str, default='./pretrained/epoch_090.pt')
 parser.add_argument('--image_path', type=str, default='./data/test')
-parser.add_argument('--result_path', type=str, default='./data/result/naf_20_real')
+parser.add_argument('--result_path', type=str, default='./data/result')
 parser.add_argument('--ext', type=str, default="png")
 parser.add_argument('--log_path', type=str, default='./log')
-parser.add_argument("--model",
-                                 type=str,
-                                 default="NAFNet",
-                                 help="available options: NAFNet, UNet")
+
 args = parser.parse_args()
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -85,12 +85,7 @@ def test(args):
 
     if os.path.isfile(ckp_path):
         print("Loading model from", ckp_path)
-        model = UNet(in_channels=3, out_channels=3)
-        if args.model == 'NAFNet':
-            model = NAFNet().cuda()
-        
-        if args.model == 'UNet':
-            model = UNet(in_channels=3, out_channels=3).cuda()
+        model = unet.UNet(in_channels=3, out_channels=3).cuda()
         ckp = torch.load(ckp_path, map_location=torch.device("cpu"))
         model.load_state_dict(ckp["g"])
         model.eval()
@@ -121,19 +116,22 @@ def test(args):
 
     metrics = defaultdict(float)
 
-    # dataloader
-    test_dataloader = Blend_Image_Dataset(args.image_path)
-
+    to_tensor = transforms.ToTensor()
+    test_no_gt = [test for test in os.listdir('./data/test_no_gt')]
+    
     with torch.no_grad():
-        for idx, (image, gt) in enumerate(test_dataloader):
+        for idx, image in enumerate(test_no_gt):
+            image_path = os.path.join('./data/test_no_gt', image)
+            image = Image.open(image_path)
+            image = to_tensor(image)
             results = remove_flare(model, image)
             save_outputs(results, result_path, idx)
             
-            metrics['PSNR'] = K.metrics.psnr(results['pred_blend'].squeeze(0), gt, 1.0).item()
-            metrics['SSIM'] = K.metrics.ssim(results['pred_blend'], gt.unsqueeze(0), 11).mean().item()
+            # metrics['PSNR'] = K.metrics.psnr(results['pred_blend'].squeeze(0), gt, 1.0).item()
+            # metrics['SSIM'] = K.metrics.ssim(results['pred_blend'], gt.unsqueeze(0), 11).mean().item()
 
             logger.info(
-                f"Test Image [{idx}/{len(test_dataloader)}] metrics "
+                f"Test Image [{idx}/{len(test_no_gt)}] metrics "
                 + "\t".join([f"{k}={v:.4f}" for k, v in metrics.items()]))
 
 
