@@ -39,13 +39,13 @@ torch.cuda.manual_seed_all(opts.seed)
 class Trainer:
     def __init__(self, options):
         self.opt = options
-        self.log_path = os.path.join(self.opt.log_dir, "UNet")
+        self.log_path = os.path.join(self.opt.log_dir, self.opt.model_name)
         
         self.running_scalars = defaultdict(float)
         self.logger = get_logger(self)
         self.writers = {}
 
-        self.tb_writers = SummaryWriter(self.log_path,"UNet")
+        self.tb_writers = SummaryWriter(self.log_path,self.opt.model_name)
         
         self.device = torch.device("cpu" if self.opt.no_cuda else "cuda")
         if self.device == 'cuda':
@@ -212,8 +212,7 @@ class Trainer:
             masked_flare = pred_flare * (1 - flare_mask) + flare_img * flare_mask
             
             loss = dict()
-            loss_weights = { 'flare': {'l1': 0, 'perceptual': 0, 'lpips' : 1, 'ffl':100},
-                        'scene': {'l1': 1,'perceptual': 0, 'lpips' : 1, 'ffl' : 0}}
+            loss_weights = self.opt.loss_weight
             
             for t, pred, gt in[
                 ("scene", masked_scene, scene_img),

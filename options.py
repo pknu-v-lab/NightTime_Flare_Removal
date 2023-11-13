@@ -64,9 +64,9 @@ class DeflareOptions:
         self.parser.add_argument("--batch_size",
                                  type=int,
                                  help="batch size",
-                                 default=4)
+                                 default=2)
         self.parser.add_argument("--lr",
-                                 default=1e-4,
+                                 default=5e-5,
                                  type=float,
                                  help="learning rate")
         self.parser.add_argument("--num_epoch", 
@@ -103,7 +103,11 @@ class DeflareOptions:
                                  help="number of epochs between each save",
                                  default=1)
         
-        
+        self.parser.add_argument("--loss_weight",
+                                 type = dict,
+                                 help = "parameter of loss_weight",
+                                 default={ 'flare': {'l1': 0, 'perceptual': 0, 'lpips' : 1, 'ffl':100},
+                                            'scene': {'l1': 1,'perceptual': 0, 'lpips' : 1, 'ffl' : 0}} )
         
         
     def parse(self):
