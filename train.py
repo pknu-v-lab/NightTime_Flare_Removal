@@ -7,7 +7,7 @@ import torch
 import kornia as K
 from collections import defaultdict
 from utils import get_logger, build_criterion,grid_transpose, log_time, load_ckp
-from torch.optim import Adam, lr_scheduler
+from torch.optim import Adam, lr_scheduler, AdamW
 import torch.backends.cudnn as cudnn
 from networks import *
 import synthesis
@@ -94,12 +94,16 @@ class Trainer:
         
         if self.opt.model == 'UNet':
             self.model = UNet(in_channels=3, out_channels=3).to(self.device)
+            
+        if self.opt.model == 'UFormer':
+            self.model = Uformer(img_size=512, embed_dim=16, depths=[2, 2, 2, 2, 2, 2, 2, 2, 2], 
+                                 win_size=8, mlp_ratio=4., token_projection='linear', token_mlp='leff', shift_flag=False).to(self.device)
         
         self.init_weights(self.model)
                                     
         #optimizer
-        self.optimizer = Adam(self.model.parameters(), self.opt.lr)
-        self.scheduler = lr_scheduler.MultiStepLR(optimizer=self.optimizer, milestones=[25, 35], gamma=0.5)
+        self.optimizer = Adam(self.model.parameters(), betas=(0.9, 0.999), lr=self.opt.lr, weight_decay=self.opt.weight_decay)
+        self.scheduler = lr_scheduler.CosineAnnealingLR(self.optimizer, self.opt.iterations, eta_min=1e-7)
         torch.optim.lr_scheduler.MultiStepLR
         
         self.criterion = build_criterion(self)
@@ -212,8 +216,8 @@ class Trainer:
             masked_flare = pred_flare * (1 - flare_mask) + flare_img * flare_mask
             
             loss = dict()
-            loss_weights = { 'flare': {'l1': 0, 'perceptual': 0, 'lpips' : 1, 'ffl':100},
-                        'scene': {'l1': 1,'perceptual': 0, 'lpips' : 1, 'ffl' : 0}}
+            loss_weights = { 'flare': {'l1': 1, 'perceptual': 1, 'lpips' : 0, 'ffl':1},
+                        'scene': {'l1': 1,'perceptual': 1, 'lpips' : 0, 'ffl' : 0}}
             
             for t, pred, gt in[
                 ("scene", masked_scene, scene_img),
@@ -250,7 +254,8 @@ class Trainer:
                 
                 
             for k, v in loss.items():
-                self.running_scalars[k] = self.running_scalars[k] + v.detach().mean().item()
+                if v != 0:
+                    self.running_scalars[k] = self.running_scalars[k] + v.detach().mean().item()
                 
             global_step = self.step
             

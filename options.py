@@ -41,11 +41,11 @@ class DeflareOptions:
         self.parser.add_argument("--model_name", 
                                  type=str, 
                                  help="the name of the folder to save the model",
-                                 default="NaFNET")
+                                 default="UFormer")
         self.parser.add_argument("--model",
                                  type=str,
-                                 default="NAFNet",
-                                 help="available options: NAFNet, UNet")
+                                 default="UFormer",
+                                 help="available options: NAFNet, UNet, UFormer")
         self.parser.add_argument('--deterninistic', 
                                  default=False, 
                                  type=bool,
@@ -73,6 +73,16 @@ class DeflareOptions:
                                  default=100, 
                                  type=int, 
                                  help="total epoch")
+        
+        self.parser.add_argument('--weight_decay', 
+                                 type=float, 
+                                 default=0.02, 
+                                 help='weight decay')
+        
+        self.parser.add_argument('--iterations', 
+                                 type=int, 
+                                 default=600000, 
+                                 help='max iterations')
         
         
         # System options
