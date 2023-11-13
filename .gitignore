@@ -3,4 +3,5 @@ data/
 log/
 *.log
 output/
-log/training.log
+training.log
+pretrained/
