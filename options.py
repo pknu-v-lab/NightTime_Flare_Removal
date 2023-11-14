@@ -41,10 +41,10 @@ class DeflareOptions:
         self.parser.add_argument("--model_name", 
                                  type=str, 
                                  help="the name of the folder to save the model",
-                                 default="UFormer")
+                                 default="NAFNet_Multi")
         self.parser.add_argument("--model",
                                  type=str,
-                                 default="UFormer",
+                                 default="NAFNet",
                                  help="available options: NAFNet, UNet, UFormer")
         self.parser.add_argument('--deterninistic', 
                                  default=False, 
@@ -64,9 +64,9 @@ class DeflareOptions:
         self.parser.add_argument("--batch_size",
                                  type=int,
                                  help="batch size",
-                                 default=4)
+                                 default=2)
         self.parser.add_argument("--lr",
-                                 default=1e-4,
+                                 default=5e-5,
                                  type=float,
                                  help="learning rate")
         self.parser.add_argument("--num_epoch", 

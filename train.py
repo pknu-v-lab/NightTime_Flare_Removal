@@ -64,7 +64,7 @@ class Trainer:
 							  transforms.RandomVerticalFlip()
                               ])
 
-        self.transform_flare=transforms.Compose([transforms.RandomAffine(degrees=(0,360),scale=(0.8,1.5),translate=(300/1440,300/1440),shear=(-20,20)),
+        self.transform_flare=transforms.Compose([
                               transforms.CenterCrop((512,512)),
 							  transforms.RandomHorizontalFlip(),
 							  transforms.RandomVerticalFlip()
@@ -92,10 +92,10 @@ class Trainer:
         if self.opt.model == 'NAFNet':
             self.model = NAFNet().to(self.device)
         
-        if self.opt.model == 'UNet':
+        elif (self.opt.model == 'UNet'):
             self.model = UNet(in_channels=3, out_channels=3).to(self.device)
             
-        if self.opt.model == 'UFormer':
+        elif (self.opt.model == 'UFormer'):
             self.model = Uformer(img_size=512, embed_dim=16, depths=[2, 2, 2, 2, 2, 2, 2, 2, 2], 
                                  win_size=8, mlp_ratio=4., token_projection='linear', token_mlp='leff', shift_flag=False).to(self.device)
         
