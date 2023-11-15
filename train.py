@@ -239,8 +239,8 @@ class Trainer:
                     if loss_weights[t].get(k, 0.0) > 0:
                         loss[f"{t}_{k}"] = loss_weights[t].get(k, 0.0) * l[k]
             
-            pe_loss = criterion(blend_light_source, gt)
-            pe_weight = 1
+            pe_loss = criterion(pred_scene, blend_light_source)
+            pe_weight = 0.85
 
             self.optimizer.zero_grad()
             total_loss = sum(loss.values()) + (pe_weight * pe_loss)
