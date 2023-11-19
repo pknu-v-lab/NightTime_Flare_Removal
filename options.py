@@ -44,7 +44,7 @@ class DeflareOptions:
                                  default="NaFNET")
         self.parser.add_argument("--model",
                                  type=str,
-                                 default="NAFNet",
+                                 default="UNet",
                                  help="available options: NAFNet, UNet")
         self.parser.add_argument('--deterninistic', 
                                  default=False, 
@@ -55,7 +55,7 @@ class DeflareOptions:
                                  type=int, 
                                  help='random crop size')
         self.parser.add_argument("--resume",
-                                 default=False,
+                                 default=True,
                                  type=bool,
                                  help="resume training from checkpoint")
         
@@ -64,13 +64,13 @@ class DeflareOptions:
         self.parser.add_argument("--batch_size",
                                  type=int,
                                  help="batch size",
-                                 default=2)
+                                 default=4)
         self.parser.add_argument("--lr",
                                  default=1e-4,
                                  type=float,
                                  help="learning rate")
         self.parser.add_argument("--num_epoch", 
-                                 default=100, 
+                                 default=30, 
                                  type=int, 
                                  help="total epoch")
         

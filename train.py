@@ -223,7 +223,7 @@ class Trainer:
             
             loss = dict()
             loss_weights = { 'flare': {'l1': 0, 'perceptual': 0, 'lpips' : 1, 'ffl':100},
-                        'scene': {'l1': 1,'perceptual': 0, 'lpips' : 1, 'ffl' : 0}}
+                        'scene': {'l1': 1,'perceptual': 0, 'lpips' : 1, 'ffl' : 1}}
             
             for t, pred, gt in[
                 ("scene", masked_scene, scene_img),
@@ -240,7 +240,7 @@ class Trainer:
                         loss[f"{t}_{k}"] = loss_weights[t].get(k, 0.0) * l[k]
             
             pe_loss = criterion(pred_scene, blend_light_source)
-            pe_weight = 0.85
+            pe_weight = 0.80
 
             self.optimizer.zero_grad()
             total_loss = sum(loss.values()) + (pe_weight * pe_loss)
