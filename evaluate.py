@@ -103,7 +103,7 @@ def calculate_metrics(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--input',type=str,default='./data/test_data/real/input')
+    parser.add_argument('--input',type=str,default='./data/result_loss_28/pred_blend')
     parser.add_argument('--gt',type=str,default='./data/test_data/real/gt')
     parser.add_argument('--mask',type=str,default='./data/test_data/real/mask')
     parser.add_argument('--log_path', type=str, default='./log')
