@@ -15,7 +15,7 @@ import torchvision
 import torch.nn.functional as F
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
-from data_loader import Flare_Image_Dataset, Blend_Image_Dataset
+from data_loader_loss import Flare_Image_Dataset, Blend_Image_Dataset
 import torch.nn.init as init
 from torch.utils.tensorboard import SummaryWriter
 from options import DeflareOptions
@@ -65,12 +65,7 @@ class Trainer:
 							  transforms.RandomVerticalFlip()
                               ])
 
-        self.transform_flare=transforms.Compose([transforms.RandomAffine(degrees=(0,360),scale=(0.8,1.5),translate=(300/1440,300/1440),shear=(-20,20)),
-                              transforms.CenterCrop((512,512)),
-							  transforms.RandomHorizontalFlip(),
-							  transforms.RandomVerticalFlip()
-                              ])
-        self.train_flare_image_dataset = Flare_Image_Dataset(self.opt.base_img, self.transform_base, self.transform_flare, mode='train')
+        self.train_flare_image_dataset = Flare_Image_Dataset(self.opt.base_img, self.transform_base, mode='train')
         self.train_flare_image_dataset.load_scattering_flare(self.opt.flare_img, os.path.join(self.opt.flare_img, 'Flare'))
         self.train_flare_image_dataset.load_light_source(self.opt.flare_img, os.path.join(self.opt.flare_img, 'Annotations/Light_Source'))
         
@@ -217,7 +212,6 @@ class Trainer:
             """
             Compute Photometric error loss
             """
-            blend_light_source = light_source_img + scene_img
             criterion = pe.PELoss().to(self.device)
 
             
@@ -239,8 +233,8 @@ class Trainer:
                     if loss_weights[t].get(k, 0.0) > 0:
                         loss[f"{t}_{k}"] = loss_weights[t].get(k, 0.0) * l[k]
             
-            pe_loss = criterion(pred_scene, blend_light_source)
-            pe_weight = 0.80
+            pe_loss = criterion(pred_scene, light_source_img)
+            pe_weight = 0.50
 
             self.optimizer.zero_grad()
             total_loss = sum(loss.values()) + (pe_weight * pe_loss)
