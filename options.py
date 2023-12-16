@@ -41,10 +41,10 @@ class DeflareOptions:
         self.parser.add_argument("--model_name", 
                                  type=str, 
                                  help="the name of the folder to save the model",
-                                 default="NAFNet_Multi")
+                                 default="UNet_Multi")
         self.parser.add_argument("--model",
                                  type=str,
-                                 default="NAFNet",
+                                 default="UNet",
                                  help="available options: NAFNet, UNet, UFormer")
         self.parser.add_argument('--deterninistic', 
                                  default=False, 
@@ -64,9 +64,9 @@ class DeflareOptions:
         self.parser.add_argument("--batch_size",
                                  type=int,
                                  help="batch size",
-                                 default=2)
+                                 default=4)
         self.parser.add_argument("--lr",
-                                 default=5e-5,
+                                 default=1e-4,
                                  type=float,
                                  help="learning rate")
         self.parser.add_argument("--num_epoch", 
@@ -83,7 +83,11 @@ class DeflareOptions:
                                  type=int, 
                                  default=600000, 
                                  help='max iterations')
-        
+        self.parser.add_argument("--loss_weight",
+                                 type = dict,
+                                 help = "parameter of loss_weight",
+                                 default={ 'flare': {'l1': 0, 'perceptual': 0, 'lpips' : 1, 'ffl':100},
+                                            'scene': {'l1': 1,'perceptual': 0, 'lpips' : 1, 'ffl' : 0}} )
         
         # System options
         self.parser.add_argument("--no_cuda",
