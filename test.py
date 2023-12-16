@@ -18,9 +18,9 @@ from data_loader import Blend_Image_Dataset
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--ckp_path',
-                    type=str, default='./output/naf_20.pt')
-parser.add_argument('--image_path', type=str, default='./data/test')
-parser.add_argument('--result_path', type=str, default='./data/result/naf_20_real')
+                    type=str, default='./output/epoch_100.pt')
+parser.add_argument('--image_path', type=str, default='./data/Flare7Kpp/test_data/real')
+parser.add_argument('--result_path', type=str, default='./data/result_UNET_100_real')
 parser.add_argument('--ext', type=str, default="png")
 parser.add_argument('--log_path', type=str, default='./log')
 parser.add_argument("--model",

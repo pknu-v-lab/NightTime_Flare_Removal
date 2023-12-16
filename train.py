@@ -39,13 +39,13 @@ torch.cuda.manual_seed_all(opts.seed)
 class Trainer:
     def __init__(self, options):
         self.opt = options
-        self.log_path = os.path.join(self.opt.log_dir, "UNet")
+        self.log_path = os.path.join(self.opt.log_dir, self.opt.model_name)
         
         self.running_scalars = defaultdict(float)
         self.logger = get_logger(self)
         self.writers = {}
 
-        self.tb_writers = SummaryWriter(self.log_path,"UNet")
+        self.tb_writers = SummaryWriter(self.log_path,self.opt.model_name)
         
         self.device = torch.device("cpu" if self.opt.no_cuda else "cuda")
         if self.device == 'cuda':
@@ -102,8 +102,8 @@ class Trainer:
         self.init_weights(self.model)
                                     
         #optimizer
-        self.optimizer = Adam(self.model.parameters(), betas=(0.9, 0.999), lr=self.opt.lr, weight_decay=self.opt.weight_decay)
-        self.scheduler = lr_scheduler.CosineAnnealingLR(self.optimizer, self.opt.iterations, eta_min=1e-7)
+        self.optimizer = Adam(self.model.parameters(), self.opt.lr)
+        self.scheduler = lr_scheduler.MultiStepLR(optimizer=self.optimizer, milestones=[25, 35], gamma=0.5)
         torch.optim.lr_scheduler.MultiStepLR
         
         self.criterion = build_criterion(self)
@@ -216,8 +216,7 @@ class Trainer:
             masked_flare = pred_flare * (1 - flare_mask) + flare_img * flare_mask
             
             loss = dict()
-            loss_weights = { 'flare': {'l1': 1, 'perceptual': 1, 'lpips' : 0, 'ffl':1},
-                        'scene': {'l1': 1,'perceptual': 1, 'lpips' : 0, 'ffl' : 0}}
+            loss_weights = self.opt.loss_weight
             
             for t, pred, gt in[
                 ("scene", masked_scene, scene_img),
@@ -291,7 +290,7 @@ class Trainer:
             to_save = dict(
                 g=self.model.state_dict(), g_optim=self.optimizer.state_dict(), epoch=self.epoch
             )
-            torch.save(to_save, os.path.join(self.output_dir, f"epoch_{self.epoch:03d}.pt"))
+            torch.save(to_save, os.path.join(self.output_dir, f"{self.opt.model_name}_epoch_{self.epoch:03d}.pt"))
         
     
         
