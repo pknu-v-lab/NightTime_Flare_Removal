@@ -15,12 +15,13 @@ import torchvision
 import torch.nn.functional as F
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
-from data_loader import Flare_Image_Dataset, Blend_Image_Dataset
+from data_loader_loss import Flare_Image_Dataset, Blend_Image_Dataset
 import torch.nn.init as init
 from torch.utils.tensorboard import SummaryWriter
 from options import DeflareOptions
 import os
 import json
+from losses import photometric_error_loss as pe
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
 
@@ -39,13 +40,13 @@ torch.cuda.manual_seed_all(opts.seed)
 class Trainer:
     def __init__(self, options):
         self.opt = options
-        self.log_path = os.path.join(self.opt.log_dir, "UNet")
+        self.log_path = os.path.join(self.opt.log_dir, self.opt.model_name)
         
         self.running_scalars = defaultdict(float)
         self.logger = get_logger(self)
         self.writers = {}
 
-        self.tb_writers = SummaryWriter(self.log_path,"UNet")
+        self.tb_writers = SummaryWriter(self.log_path, self.opt.model_name)
         
         self.device = torch.device("cpu" if self.opt.no_cuda else "cuda")
         if self.device == 'cuda':
@@ -64,13 +65,9 @@ class Trainer:
 							  transforms.RandomVerticalFlip()
                               ])
 
-        self.transform_flare=transforms.Compose([
-                              transforms.CenterCrop((512,512)),
-							  transforms.RandomHorizontalFlip(),
-							  transforms.RandomVerticalFlip()
-                              ])
-        self.train_flare_image_dataset = Flare_Image_Dataset(self.opt.base_img, self.transform_base, self.transform_flare, mode='train')
+        self.train_flare_image_dataset = Flare_Image_Dataset(self.opt.base_img, self.transform_base, mode='train')
         self.train_flare_image_dataset.load_scattering_flare(self.opt.flare_img, os.path.join(self.opt.flare_img, 'Flare'))
+        self.train_flare_image_dataset.load_light_source(self.opt.flare_img, os.path.join(self.opt.flare_img, 'Annotations/Light_Source'))
         
         
         self.train_dataloader = DataLoader(dataset=self.train_flare_image_dataset,
@@ -102,8 +99,8 @@ class Trainer:
         self.init_weights(self.model)
                                     
         #optimizer
-        self.optimizer = Adam(self.model.parameters(), betas=(0.9, 0.999), lr=self.opt.lr, weight_decay=self.opt.weight_decay)
-        self.scheduler = lr_scheduler.CosineAnnealingLR(self.optimizer, self.opt.iterations, eta_min=1e-7)
+        self.optimizer = Adam(self.model.parameters(), lr=self.opt.lr)
+        self.scheduler = lr_scheduler.MultiStepLR(optimizer=self.optimizer, milestones=[25, 35], gamma=0.5)
         torch.optim.lr_scheduler.MultiStepLR
         
         self.criterion = build_criterion(self)
@@ -196,12 +193,13 @@ class Trainer:
         for batch_idx, inputs in enumerate(self.train_dataloader):
             
             before_op_time = time()
-            scene_img, flare_img, merge_img, gamma = inputs
+            scene_img, flare_img, merge_img, gamma, light_source_img = inputs
             
             scene_img = scene_img.to(self.device).float()
             flare_img = flare_img.to(self.device).float()
             merge_img = merge_img.to(self.device).float()
             gamma = gamma.to(self.device).float()
+            light_source_img = light_source_img.to(self.device).float()
             
 
             pred_scene = self.model(merge_img).clamp(0.0, 1.0)
@@ -215,9 +213,13 @@ class Trainer:
             masked_scene = pred_scene * (1 - flare_mask) + scene_img * flare_mask
             masked_flare = pred_flare * (1 - flare_mask) + flare_img * flare_mask
             
+            """
+            Compute Photometric error loss
+            """
+            criterion = pe.PELoss().to(self.device)
+            
             loss = dict()
-            loss_weights = { 'flare': {'l1': 1, 'perceptual': 1, 'lpips' : 0, 'ffl':1},
-                        'scene': {'l1': 1,'perceptual': 1, 'lpips' : 0, 'ffl' : 0}}
+            loss_weights = self.opt.loss_weight
             
             for t, pred, gt in[
                 ("scene", masked_scene, scene_img),
@@ -233,8 +235,12 @@ class Trainer:
                     if loss_weights[t].get(k, 0.0) > 0:
                         loss[f"{t}_{k}"] = loss_weights[t].get(k, 0.0) * l[k]
             
+            
+            pe_loss = criterion(pred_scene, light_source_img)
+            pe_weight = 0.50
+            
             self.optimizer.zero_grad()
-            total_loss = sum(loss.values())
+            total_loss = sum(loss.values()) + (pe_weight * pe_loss)
             total_loss.backward()
             self.optimizer.step()
         
