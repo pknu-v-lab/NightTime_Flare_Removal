@@ -297,7 +297,7 @@ class Trainer:
             to_save = dict(
                 g=self.model.state_dict(), g_optim=self.optimizer.state_dict(), epoch=self.epoch
             )
-            torch.save(to_save, os.path.join(self.output_dir, f"epoch_{self.epoch:03d}.pt"))
+            torch.save(to_save, os.path.join(self.output_dir, f"{self.opt.model_name}_epoch_{self.epoch:03d}.pt"))
         
     
         
